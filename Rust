@@ -1,0 +1,74 @@
+```rust
+use std::io::{self, Write};
+use std::collections::VecDeque;
+
+fn eval_rpn(tokens: Vec<String>) -> Result<f64, String> {
+    let mut stack: Vec<f64> = Vec::new();
+    for tok in tokens {
+        match tok.as_str() {
+            "+" => { let b = stack.pop().ok_or("stack underflow")?; let a = stack.pop().ok_or("stack underflow")?; stack.push(a + b); }
+            "-" => { let b = stack.pop().ok_or("stack underflow")?; let a = stack.pop().ok_or("stack underflow")?; stack.push(a - b); }
+            "*" => { let b = stack.pop().ok_or("stack underflow")?; let a = stack.pop().ok_or("stack underflow")?; stack.push(a * b); }
+            "/" => { let b = stack.pop().ok_or("stack underflow")?; if b == 0.0 { return Err("division by zero".into()); } let a = stack.pop().ok_or("stack underflow")?; stack.push(a / b); }
+            "sin" => { let a = stack.pop().ok_or("stack underflow")?; stack.push(a.sin()); }
+            "cos" => { let a = stack.pop().ok_or("stack underflow")?; stack.push(a.cos()); }
+            "sqrt" => { let a = stack.pop().ok_or("stack underflow")?; if a < 0.0 { return Err("sqrt of negative".into()); } stack.push(a.sqrt()); }
+            "pow" => { let b = stack.pop().ok_or("stack underflow")?; let a = stack.pop().ok_or("stack underflow")?; stack.push(a.powf(b)); }
+            "log" => { let a = stack.pop().ok_or("stack underflow")?; if a <= 0.0 { return Err("log non-positive".into()); } stack.push(a.ln()); }
+            _ => { let num = tok.parse::<f64>().map_err(|_| format!("invalid number: {}", tok))?; stack.push(num); }
+        }
+    }
+    if stack.len() != 1 { Err("invalid expression".into()) } else { Ok(stack[0]) }
+}
+
+fn infix_to_rpn(expr: &str) -> Result<Vec<String>, String> {
+    let precedence = |op: &str| match op {
+        "+" | "-" => 1,
+        "*" | "/" => 2,
+        "sin" | "cos" | "sqrt" | "log" => 3,
+        "pow" => 4,
+        _ => 0,
+    };
+    let is_function = |s: &str| matches!(s, "sin" | "cos" | "sqrt" | "log" | "pow");
+    let mut output = Vec::new();
+    let mut ops = Vec::new();
+    let tokens: Vec<String> = expr.split_whitespace().map(|s| s.to_string()).collect();
+    for tok in tokens {
+        if let Ok(_) = tok.parse::<f64>() { output.push(tok); }
+        else if is_function(&tok) { ops.push(tok); }
+        else if tok == "(" { ops.push(tok); }
+        else if tok == ")" {
+            while let Some(op) = ops.pop() {
+                if op == "(" { break; }
+                output.push(op);
+            }
+        } else {
+            while let Some(op) = ops.last() {
+                if precedence(op) >= precedence(&tok) && op != "(" { output.push(ops.pop().unwrap()); }
+                else { break; }
+            }
+            ops.push(tok);
+        }
+    }
+    while let Some(op) = ops.pop() { output.push(op); }
+    Ok(output)
+}
+
+fn main() {
+    println!("=== Rust Advanced Calc ===");
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input).is_err() { break; }
+        let input = input.trim();
+        if input == "exit" || input == "q" { break; }
+        match infix_to_rpn(input) {
+            Ok(rpn) => match eval_rpn(rpn) {
+                Ok(res) => println!("= {:.6}", res),
+                Err(e) => println!("Error: {}", e),
+            },
+            Err(e) => println!("Parse error: {}", e),
+        }
+    }
+}
