@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+import math
+import readline
+from collections import deque
+
+history = deque(maxlen=20)
+vars = {}
+
+def evaluate(expr: str) -> float:
+    # замена переменных
+    for name, val in vars.items():
+        expr = expr.replace(name, str(val))
+    # безопасный eval с ограниченным globals
+    allowed = {**math.__dict__, "abs": abs, "round": round}
+    try:
+        # дополнительно разрешаем **, //, %
+        result = eval(expr, {"__builtins__": None}, allowed)
+        if not isinstance(result, (int, float)):
+            raise ValueError("result not numeric")
+        return float(result)
+    except Exception as e:
+        raise ValueError(f"eval error: {e}")
+
+def main():
+    print("Python Calc — with vars & history (type 'history', 'clear', 'exit')")
+    while True:
+        try:
+            inp = input(">> ").strip()
+        except EOFError:
+            break
+        if inp in ("exit", "quit"):
+            break
+        if inp == "clear":
+            vars.clear()
+            history.clear()
+            print("reset")
+            continue
+        if inp == "history":
+            for i, h in enumerate(history):
+                print(f"{i+1}: {h}")
+            continue
+        if "=" in inp and not inp.startswith(("=", ">")):
+            name, _, expr = inp.partition("=")
+            name = name.strip()
+            if name.isidentifier():
+                try:
+                    val = evaluate(expr)
+                    vars[name] = val
+                    print(f"{name} = {val}")
+                except Exception as e:
+                    print(f"error: {e}")
+            else:
+                print("invalid variable name")
+            continue
+        try:
+            res = evaluate(inp)
+            print(f"= {res:.10g}")
+            history.append(f"{inp} -> {res}")
+        except Exception as e:
+            print(f"! {e}")
+
+if __name__ == "__main__":
+    main()
