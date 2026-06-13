@@ -1,0 +1,124 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"math"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+)
+
+type Stack []float64
+
+func (s *Stack) Push(v float64) { *s = append(*s, v) }
+func (s *Stack) Pop() float64 {
+	if len(*s) == 0 { panic("empty stack") }
+	v := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return v
+}
+
+func shuntingYard(tokens []string) ([]string, error) {
+	var output []string
+	var ops []string
+	prec := map[string]int{"+":1, "-":1, "*":2, "/":2, "^":3, "sin":4, "cos":4, "sqrt":4}
+	for _, tok := range tokens {
+		if num, err := strconv.ParseFloat(tok, 64); err == nil {
+			output = append(output, fmt.Sprintf("%v", num))
+		} else if tok == "(" {
+			ops = append(ops, tok)
+		} else if tok == ")" {
+			for len(ops) > 0 && ops[len(ops)-1] != "(" {
+				output = append(output, ops[len(ops)-1])
+				ops = ops[:len(ops)-1]
+			}
+			if len(ops) == 0 { return nil, fmt.Errorf("mismatched parentheses") }
+			ops = ops[:len(ops)-1]
+		} else {
+			for len(ops) > 0 && prec[ops[len(ops)-1]] >= prec[tok] && ops[len(ops)-1] != "(" {
+				output = append(output, ops[len(ops)-1])
+				ops = ops[:len(ops)-1]
+			}
+			ops = append(ops, tok)
+		}
+	}
+	for len(ops) > 0 {
+		if ops[len(ops)-1] == "(" { return nil, fmt.Errorf("mismatched parentheses") }
+		output = append(output, ops[len(ops)-1])
+		ops = ops[:len(ops)-1]
+	}
+	return output, nil
+}
+
+func evalRPN(rpn []string) (float64, error) {
+	stack := Stack{}
+	for _, tok := range rpn {
+		if num, err := strconv.ParseFloat(tok, 64); err == nil {
+			stack.Push(num)
+			continue
+		}
+		switch tok {
+		case "+": a,b := stack.Pop(), stack.Pop(); stack.Push(b+a)
+		case "-": a,b := stack.Pop(), stack.Pop(); stack.Push(b-a)
+		case "*": a,b := stack.Pop(), stack.Pop(); stack.Push(b*a)
+		case "/": a,b := stack.Pop(), stack.Pop(); if a==0 { return 0, fmt.Errorf("division by zero") }; stack.Push(b/a)
+		case "^": a,b := stack.Pop(), stack.Pop(); stack.Push(math.Pow(b,a))
+		case "sin": a := stack.Pop(); stack.Push(math.Sin(a))
+		case "cos": a := stack.Pop(); stack.Push(math.Cos(a))
+		case "sqrt": a := stack.Pop(); if a<0 { return 0, fmt.Errorf("sqrt negative") }; stack.Push(math.Sqrt(a))
+		default: return 0, fmt.Errorf("unknown operator %s", tok)
+		}
+	}
+	if len(stack) != 1 { return 0, fmt.Errorf("invalid expression") }
+	return stack.Pop(), nil
+}
+
+func tokenize(s string) []string {
+	var tokens []string
+	var sb strings.Builder
+	for _, r := range s {
+		if r == ' ' { continue }
+		if strings.ContainsRune("+-*/^()", r) {
+			if sb.Len() > 0 { tokens = append(tokens, sb.String()); sb.Reset() }
+			tokens = append(tokens, string(r))
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+	if sb.Len() > 0 { tokens = append(tokens, sb.String()) }
+	return tokens
+}
+
+func main() {
+	fmt.Println("Go Calc (async history, goroutine-safe)")
+	scanner := bufio.NewScanner(os.Stdin)
+	var mu sync.Mutex
+	history := make([]string, 0, 20)
+	for {
+		fmt.Print(">> ")
+		if !scanner.Scan() { break }
+		line := strings.TrimSpace(scanner.Text())
+		if line == "exit" { break }
+		if line == "history" {
+			mu.Lock()
+			for i, h := range history {
+				fmt.Printf("%d: %s\n", i+1, h)
+			}
+			mu.Unlock()
+			continue
+		}
+		go func(expr string) {  // горутина для длительных вычислений
+			tokens := tokenize(expr)
+			rpn, err := shuntingYard(tokens)
+			if err != nil { fmt.Println("Error:", err); return }
+			res, err := evalRPN(rpn)
+			if err != nil { fmt.Println("Error:", err); return }
+			fmt.Printf("= %g\n", res)
+			mu.Lock()
+			history = append(history, fmt.Sprintf("%s = %g", expr, res))
+			mu.Unlock()
+		}(line)
+	}
+}
