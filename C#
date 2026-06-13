@@ -1,0 +1,51 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+
+namespace StadoCalc {
+    class Program {
+        static Dictionary<string, double> vars = new();
+        static List<string> history = new();
+
+        static void Main() {
+            Console.WriteLine("C# Advanced Calc — use 'set x=5', 'func f(x)=x^2', 'history', 'exit'");
+            while (true) {
+                Console.Write(">> ");
+                string input = Console.ReadLine().Trim();
+                if (input == "exit") break;
+                if (input == "history") { history.ForEach(Console.WriteLine); continue; }
+                try {
+                    if (input.StartsWith("set ")) {
+                        var parts = input[4..].Split('=');
+                        if (double.TryParse(parts[1], out double val))
+                            vars[parts[0]] = val;
+                        else throw new Exception("invalid number");
+                        Console.WriteLine($"{parts[0]} = {val}");
+                    }
+                    else if (input.StartsWith("func ")) {
+                        // пример: func sqr(x)=x*x — демо, в реальности динамическая компиляция
+                        Console.WriteLine("User functions not fully implemented in demo.");
+                    }
+                    else {
+                        double res = Evaluate(input);
+                        Console.WriteLine($"= {res}");
+                        history.Add($"{input} -> {res}");
+                    }
+                } catch (Exception ex) {
+                    Console.WriteLine($"! {ex.Message}");
+                }
+            }
+        }
+
+        static double Evaluate(string expr) {
+            // заменяем переменные
+            foreach (var kv in vars)
+                expr = expr.Replace(kv.Key, kv.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // используем DataTable.Compute (быстро и небезопасно, но для демо)
+            var dt = new System.Data.DataTable();
+            var result = dt.Compute(expr, "");
+            return Convert.ToDouble(result);
+        }
+    }
+}
