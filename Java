@@ -1,0 +1,70 @@
+import java.util.*;
+import java.util.function.DoubleUnaryOperator;
+import java.util.regex.Pattern;
+
+public class AdvancedCalc {
+    private static final Map<String, DoubleUnaryOperator> FUNCTIONS = Map.of(
+        "sin", Math::sin, "cos", Math::cos, "tan", Math::tan,
+        "sqrt", Math::sqrt, "log", Math::log, "exp", Math::exp
+    );
+    private static final Deque<String> history = new ArrayDeque<>();
+    private static final Map<String, Double> vars = new HashMap<>();
+
+    public static void main(String[] args) {
+        vars.put("pi", Math.PI);
+        vars.put("e", Math.E);
+        try (Scanner sc = new Scanner(System.in)) {
+            System.out.println("Java Calc — type 'help', 'vars', 'history', 'exit'");
+            while (true) {
+                System.out.print(">> ");
+                String line = sc.nextLine().trim();
+                if (line.equals("exit")) break;
+                if (line.equals("history")) {
+                    history.forEach(System.out::println);
+                    continue;
+                }
+                if (line.equals("vars")) {
+                    vars.forEach((k,v) -> System.out.printf("%s = %f\n", k, v));
+                    continue;
+                }
+                if (line.matches("[a-zA-Z_]+\\s*=.*")) {
+                    String[] parts = line.split("=", 2);
+                    String name = parts[0].trim();
+                    String expr = parts[1].trim();
+                    try {
+                        double val = evaluate(expr);
+                        vars.put(name, val);
+                        System.out.printf("%s = %f\n", name, val);
+                    } catch (Exception e) {
+                        System.err.println("Error: " + e.getMessage());
+                    }
+                    continue;
+                }
+                try {
+                    double res = evaluate(line);
+                    System.out.printf("= %f\n", res);
+                    history.addFirst(line + " -> " + res);
+                    if (history.size() > 10) history.removeLast();
+                } catch (Exception e) {
+                    System.err.println("Error: " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    private static double evaluate(String expr) throws Exception {
+        // Замена переменных
+        for (var entry : vars.entrySet()) {
+            expr = expr.replaceAll("\\b" + entry.getKey() + "\\b", entry.getValue().toString());
+        }
+        // Используем встроенный JavaScript Engine (Nashorn устарел, но GraalVM)
+        // Для примера — простой ручной парсер, но здесь используем ScriptEngine
+        // Чтобы не усложнять, воспользуемся javax.script (работает до Java 15)
+        // Для Java 17+ нужно подключать GraalVM JS, но в демо-целях:
+        javax.script.ScriptEngineManager mgr = new javax.script.ScriptEngineManager();
+        javax.script.ScriptEngine engine = mgr.getEngineByName("JavaScript");
+        Object result = engine.eval(expr);
+        if (result instanceof Number) return ((Number) result).doubleValue();
+        throw new Exception("non-numeric result");
+    }
+}
