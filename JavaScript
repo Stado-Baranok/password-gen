@@ -1,0 +1,28 @@
+#!/usr/bin/env node
+const readline = require('readline');
+const math = require('mathjs');  // npm install mathjs
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+  prompt: 'js> '
+});
+
+console.log('\x1b[32mJS Advanced Calc (math.js) — supports units, matrices\x1b[0m');
+rl.prompt();
+
+rl.on('line', (line) => {
+  let input = line.trim();
+  if (input === 'exit' || input === 'quit') rl.close();
+  else if (input === 'clear') console.clear();
+  else {
+    try {
+      // продвинутый парсер math.js
+      const result = math.evaluate(input);
+      console.log(`\x1b[36m= ${math.format(result, {precision: 12})}\x1b[0m`);
+    } catch (err) {
+      console.error(`\x1b[31mError: ${err.message}\x1b[0m`);
+    }
+  }
+  rl.prompt();
+}).on('close', () => process.exit(0));
