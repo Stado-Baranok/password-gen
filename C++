@@ -1,0 +1,116 @@
+#include <iostream>
+#include <string>
+#include <sstream>
+#include <cmath>
+#include <cctype>
+#include <map>
+#include <functional>
+
+using namespace std;
+
+class Calculator {
+    string expr;
+    size_t pos;
+    map<string, double> vars;
+
+    double factor();
+    double term();
+    double expression();
+
+    void skipWS() { while (pos < expr.size() && isspace(expr[pos])) pos++; }
+    double getNumber() {
+        skipWS();
+        size_t start = pos;
+        while (pos < expr.size() && (isdigit(expr[pos]) || expr[pos] == '.')) pos++;
+        string num = expr.substr(start, pos - start);
+        if (num.empty()) throw runtime_error("number expected");
+        return stod(num);
+    }
+
+    string getIdent() {
+        skipWS();
+        size_t start = pos;
+        while (pos < expr.size() && isalnum(expr[pos])) pos++;
+        return expr.substr(start, pos - start);
+    }
+
+public:
+    Calculator() : pos(0) {}
+    void setVar(string name, double val) { vars[name] = val; }
+    double eval(const string& s) {
+        expr = s;
+        pos = 0;
+        double res = expression();
+        skipWS();
+        if (pos != expr.size()) throw runtime_error("unexpected characters");
+        return res;
+    }
+
+private:
+    double expression() {
+        double left = term();
+        skipWS();
+        while (pos < expr.size() && (expr[pos] == '+' || expr[pos] == '-')) {
+            char op = expr[pos++];
+            double right = term();
+            if (op == '+') left += right;
+            else left -= right;
+            skipWS();
+        }
+        return left;
+    }
+    double term() {
+        double left = factor();
+        skipWS();
+        while (pos < expr.size() && (expr[pos] == '*' || expr[pos] == '/')) {
+            char op = expr[pos++];
+            double right = factor();
+            if (op == '*') left *= right;
+            else if (right == 0) throw runtime_error("division by zero");
+            else left /= right;
+            skipWS();
+        }
+        return left;
+    }
+    double factor() {
+        skipWS();
+        if (expr[pos] == '(') {
+            pos++;
+            double res = expression();
+            if (expr[pos] != ')') throw runtime_error("')' expected");
+            pos++;
+            return res;
+        }
+        if (isalpha(expr[pos])) {
+            string name = getIdent();
+            if (name == "sin") {
+                double arg = factor();
+                return sin(arg);
+            } else if (name == "cos") { double arg = factor(); return cos(arg); }
+            else if (name == "sqrt") { double arg = factor(); return sqrt(arg); }
+            else if (name == "log") { double arg = factor(); return log(arg); }
+            else if (vars.count(name)) return vars[name];
+            else throw runtime_error("unknown variable: " + name);
+        }
+        return getNumber();
+    }
+};
+
+int main() {
+    Calculator calc;
+    calc.setVar("pi", 3.141592653589793);
+    calc.setVar("e", 2.718281828459045);
+    cout << "C++ Calc (functions: sin,cos,sqrt,log, variables pi,e)" << endl;
+    string line;
+    while (true) {
+        cout << "> ";
+        getline(cin, line);
+        if (line == "exit" || line == "q") break;
+        try {
+            cout << "= " << calc.eval(line) << endl;
+        } catch (const exception& e) {
+            cout << "! " << e.what() << endl;
+        }
+    }
+    return 0;
+}
